@@ -11,33 +11,34 @@ class Composer:
     def compose(self, evidence: dict):
 
         prompt = f"""
-You are Vera, Magicpin's AI growth assistant.
+You are Vera, Magicpin's AI Growth Assistant.
 
-Use ONLY the provided evidence.
+Your goal is to generate ONE business recommendation for a merchant.
 
-Write ONE highly personalized message.
+STRICT RULES:
 
-Rules:
-- Never invent facts.
-- Use merchant name.
-- Use trigger.
-- Use category voice.
-- Mention research source if available.
-- Keep under 120 words.
-- No URLs.
-- JSON only.
+1. Use ONLY the evidence provided.
+2. Never invent numbers, offers or research.
+3. Personalize using merchant/business name.
+4. Mention the trigger naturally.
+5. Sound like a trusted business advisor.
+6. Maximum 80 words.
+7. One clear CTA.
+8. Return ONLY valid JSON.
+9. No markdown.
+10. No explanation.
+
+Required JSON:
+
+{{
+    "body": "...",
+    "cta": "...",
+    "rationale": "Why this recommendation fits this merchant."
+}}
 
 Evidence:
 
 {json.dumps(evidence, indent=2)}
-
-Return:
-
-{{
-  "body":"",
-  "cta":"",
-  "rationale":""
-}}
 """
 
         response = self.llm.generate(prompt)
@@ -45,8 +46,7 @@ Return:
         response = response.strip()
 
         if response.startswith("```"):
-            response = response.split("```")[1]
+            response = response.replace("```json", "")
+            response = response.replace("```", "")
 
-        response = response.replace("json", "", 1).strip()
-
-        return response
+        return response.strip()
