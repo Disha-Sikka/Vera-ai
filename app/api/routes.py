@@ -1,7 +1,7 @@
 from datetime import datetime
-
+from fastapi import HTTPException
 from fastapi import APIRouter
-
+from app.services.decision_engine import DecisionEngine
 from app.api.schemas import ContextRequest, ContextResponse
 from app.domain.context_models import ContextRecord
 from app.services.context_store import ContextStore
@@ -10,6 +10,7 @@ from app.services.store_instance import store
 router = APIRouter()
 
 store = ContextStore()
+engine = DecisionEngine()
 
 
 @router.get("/v1/healthz")
@@ -59,3 +60,40 @@ def push_context(request: ContextRequest):
         ack_id=f"ack_{request.context_id}_v{request.version}",
         stored_at=datetime.utcnow(),
     )
+
+@router.post("/v1/tick")
+def tick():
+
+    if not store.merchants:
+        raise HTTPException(
+            status_code=404,
+            detail="No merchants available."
+        )
+
+    merchant = next(iter(store.merchants.values()))
+
+    trigger = (
+        next(iter(store.triggers.values()))
+        if store.triggers
+        else None
+    )
+
+    customer = (
+        next(iter(store.customers.values()))
+        if store.customers
+        else None
+    )
+
+    if trigger is None or customer is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing trigger or customer context."
+        )
+
+    decision = engine.decide(
+        merchant,
+        trigger,
+        customer,
+    )
+
+    return decision
