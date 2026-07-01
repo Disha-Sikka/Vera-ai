@@ -1,29 +1,41 @@
 import os
-
-from mistralai import Mistral
+import httpx
 
 
 class LLMProvider:
 
     def __init__(self):
-        self.client = Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
-        self.model = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+        self.api_key = os.getenv("MISTRAL_API_KEY")
+        self.model = os.getenv(
+            "MISTRAL_MODEL",
+            "mistral-large-latest",
+        )
 
     def generate(self, prompt: str):
 
-        response = self.client.chat.complete(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are Vera, Magicpin's AI growth assistant."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.2,
+        response = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are Vera, Magicpin's AI growth assistant.",
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                "temperature": 0.2,
+            },
+            timeout=60,
         )
 
-        return response.choices[0].message.content
+        response.raise_for_status()
+
+        return response.json()["choices"][0]["message"]["content"]
