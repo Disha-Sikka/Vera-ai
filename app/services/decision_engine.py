@@ -1,20 +1,24 @@
-from app.domain.models import Decision
-from app.domain.enums import Priority, Strategy
+from app.domain.decision_models import DecisionPlan
+from app.domain.enums import Priority, Sender, Strategy
+from app.services.scoring import ScoringEngine
 
 
 class DecisionEngine:
 
-    def decide(self, context):
-        """
-        Placeholder implementation.
-        """
+    def __init__(self):
+        self.scorer = ScoringEngine()
 
-        return Decision(
-            strategy=Strategy.INCREASE_FOOTFALL,
+    def decide(self, context):
+
+        results = self.scorer.calculate(context)
+
+        best = max(results, key=lambda x: x.score)
+
+        return DecisionPlan(
+            strategy=best.strategy,
             priority=Priority.MEDIUM,
-            score=50,
+            sender=Sender.VERA,
+            cta="Open Dashboard",
+            score=best.score,
             confidence=0.80,
-            reasoning=[
-                "Initial placeholder strategy."
-            ]
-        )
+            reasoning=best.reasons,)
