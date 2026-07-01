@@ -48,26 +48,6 @@ class Trigger(BaseModel):
     raw_data: dict[str, Any] = Field(default_factory=dict)
 
 
-class Decision(BaseModel):
-    """
-    Internal decision produced by the decision engine.
-    This model is NOT exposed to the API.
-    """
-
-    strategy: Strategy
-
-    priority: Priority
-
-    # Score assigned by our scoring engine.
-    score: float
-
-    # Confidence between 0 and 1.
-    confidence: float = Field(ge=0.0, le=1.0)
-
-    # Facts explaining why this decision was selected.
-    reasoning: list[str] = Field(default_factory=list)
-
-
 class ComposeResponse(BaseModel):
     """
     Final response returned to the challenge evaluator.
