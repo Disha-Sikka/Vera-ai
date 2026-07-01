@@ -4,14 +4,13 @@ from fastapi import APIRouter
 from app.services.decision_engine import DecisionEngine
 from app.api.schemas import ContextRequest, ContextResponse
 from app.domain.context_models import ContextRecord
-from app.services.context_store import ContextStore
 from app.services.store_instance import store
 from app.api.tick_schema import TickRequest
 from app.domain.actions import Action, TickResponse
+from app.api.reply_schema import ReplyRequest, ReplyResponse
 
 router = APIRouter()
 
-store = ContextStore()
 engine = DecisionEngine()
 
 
@@ -108,3 +107,68 @@ def tick(request: TickRequest):
         actions.append(action)
 
     return TickResponse(actions=actions)
+
+@router.post("/v1/reply", response_model=ReplyResponse)
+def reply(request: ReplyRequest):
+
+    message = request.message.lower()
+
+    # Hostile / Opt-out
+    if any(x in message for x in [
+        "stop",
+        "spam",
+        "not interested",
+        "useless",
+        "don't message",
+        "do not message",
+    ]):
+        return ReplyResponse(
+            action="end",
+            rationale="Merchant opted out.",
+        )
+
+    # Auto reply
+    if (
+        "thank you for contacting" in message
+        or "respond shortly" in message
+        or "auto reply" in message
+    ):
+        if request.turn_number >= 4:
+            return ReplyResponse(
+                action="end",
+                rationale="Repeated auto replies detected.",
+            )
+
+        return ReplyResponse(
+            action="wait",
+            wait_seconds=14400,
+            rationale="Detected auto reply.",
+        )
+
+    # Intent transition
+    if any(x in message for x in [
+        "let's do it",
+        "lets do it",
+        "what's next",
+        "whats next",
+        "yes",
+        "okay",
+        "ok",
+    ]):
+        return ReplyResponse(
+            action="send",
+            body=(
+                "Great! I'll prepare everything for you. "
+                "I'll draft the message and share it for your approval."
+            ),
+            cta="binary_confirm_cancel",
+            rationale="Merchant is ready to proceed.",
+        )
+
+    # Default
+    return ReplyResponse(
+        action="send",
+        body="Thanks! Let me help you with that.",
+        cta="open_ended",
+        rationale="General response.",
+    )
