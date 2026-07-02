@@ -10,6 +10,7 @@ from app.api.reply_schema import ReplyRequest, ReplyResponse
 from app.services.evidence_builder import EvidenceBuilder
 from app.services.composer import Composer
 import json
+import httpx
 
 router = APIRouter()
 evidence_builder = EvidenceBuilder()
@@ -112,7 +113,14 @@ def tick(request: TickRequest):
             customer=customer,
         )
 
-        response = composer.compose(evidence)
+        try:
+            response = composer.compose(evidence)
+        except httpx.TimeoutException:
+            continue
+        except httpx.HTTPError:
+            continue
+        except Exception:
+            continue
 
         try:
             generated = json.loads(response)

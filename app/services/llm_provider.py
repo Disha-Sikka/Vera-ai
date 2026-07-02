@@ -1,15 +1,15 @@
 import os
 import httpx
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class LLMProvider:
 
     def __init__(self):
         self.api_key = os.getenv("MISTRAL_API_KEY")
-        self.model = os.getenv(
-            "MISTRAL_MODEL",
-            "mistral-large-latest",
-        )
+        self.model = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+
 
     def generate(self, prompt: str):
 
@@ -33,7 +33,7 @@ class LLMProvider:
                 ],
                 "temperature": 0.2,
             },
-            timeout=60,
+            timeout=20,
         )
 
         response.raise_for_status()
