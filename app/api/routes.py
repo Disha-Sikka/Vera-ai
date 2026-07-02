@@ -29,6 +29,13 @@ def health():
         },
     }
 
+@router.get("/v1/metadata")
+def metadata():
+    return {
+        "team": "Vera Decision Engine",
+        "model": "mistral-large-latest",
+        "version": "1.0.0",
+    }
 
 @router.post("/v1/context", response_model=ContextResponse)
 def push_context(request: ContextRequest):

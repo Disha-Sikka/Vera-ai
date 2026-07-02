@@ -8,52 +8,64 @@ class RecommendationBuilder:
 
     def build(self, evidence: dict[str, Any]) -> dict[str, Any]:
 
+        category = str(evidence.get("category", "")).lower()
+
         recommendation = {
             "problem": "",
             "goal": "",
             "recommended_action": "",
             "facts": [],
+            "tone": "",
         }
 
-        trigger = evidence.get("trigger_type", "")
+        if "restaurant" in category:
+            recommendation["goal"] = "Increase table bookings and repeat customers."
+            recommendation["tone"] = "friendly, energetic, food-focused"
 
-        if trigger == "research_digest":
-            recommendation["problem"] = "Merchant may be missing an important business opportunity."
-            recommendation["goal"] = "Help the merchant act on recent industry research."
-            recommendation["recommended_action"] = "Share a concise recommendation based on the research."
+        elif "salon" in category:
+            recommendation["goal"] = "Increase repeat appointments."
+            recommendation["tone"] = "premium, beauty-focused"
 
-        elif trigger == "low_repeat_customers":
-            recommendation["problem"] = "Customer retention is low."
-            recommendation["goal"] = "Increase repeat visits."
-            recommendation["recommended_action"] = "Launch a repeat customer campaign."
+        elif "dent" in category:
+            recommendation["goal"] = "Increase patient visits and trust."
+            recommendation["tone"] = "professional, trustworthy"
 
-        elif trigger == "inactive_offer":
-            recommendation["problem"] = "No attractive offer is currently running."
-            recommendation["goal"] = "Increase footfall."
-            recommendation["recommended_action"] = "Create a limited-time promotional offer."
+        elif "gym" in category:
+            recommendation["goal"] = "Increase memberships and retention."
+            recommendation["tone"] = "motivational"
+
+        elif "pharmacy" in category:
+            recommendation["goal"] = "Increase customer trust and repeat purchases."
+            recommendation["tone"] = "professional"
+
+        else:
+            recommendation["goal"] = "Help merchant grow."
+
+        trigger = str(evidence.get("trigger_type", "")).lower()
+
+        if "research" in trigger:
+            recommendation["problem"] = "A new research insight may help this business."
+            recommendation["recommended_action"] = "Share the research and explain how to use it."
+
+        elif "repeat" in trigger:
+            recommendation["problem"] = "Repeat customer rate is low."
+            recommendation["recommended_action"] = "Recommend a loyalty campaign."
+
+        elif "offer" in trigger:
+            recommendation["problem"] = "Merchant is missing an attractive offer."
+            recommendation["recommended_action"] = "Recommend launching a limited-time offer."
 
         else:
             recommendation["problem"] = "Business growth opportunity detected."
-            recommendation["goal"] = "Increase merchant performance."
-            recommendation["recommended_action"] = "Provide a personalized recommendation."
+            recommendation["recommended_action"] = "Provide practical next steps."
 
-        recommendation["facts"].append(
-            f"Merchant: {evidence.get('business_name','')}"
-        )
+        recommendation["facts"] = [
+            f"Business: {evidence.get('business_name','')}",
+            f"Category: {evidence.get('category','')}",
+            f"City: {evidence.get('city','')}",
+        ]
 
-        recommendation["facts"].append(
-            f"Category: {evidence.get('category','')}"
-        )
-
-        recommendation["facts"].append(
-            f"City: {evidence.get('city','')}"
-        )
-
-        signals = evidence.get("signals", [])
-
-        if signals:
-            recommendation["facts"].append(
-                "Signals: " + ", ".join(signals)
-            )
+        for signal in evidence.get("signals", []):
+            recommendation["facts"].append(signal)
 
         return recommendation

@@ -29,6 +29,9 @@ Goal:
 Recommended Action:
 {recommendation["recommended_action"]}
 
+Tone:
+{recommendation["tone"]}
+
 Facts:
 
 {chr(10).join("- " + x for x in recommendation["facts"])}
