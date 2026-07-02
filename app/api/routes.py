@@ -9,12 +9,15 @@ from app.domain.actions import Action, TickResponse
 from app.api.reply_schema import ReplyRequest, ReplyResponse
 from app.services.evidence_builder import EvidenceBuilder
 from app.services.composer import Composer
+from app.services.recommendation_builder import RecommendationBuilder
 import json
 import httpx
+import asyncio
 
 router = APIRouter()
 evidence_builder = EvidenceBuilder()
 composer = Composer()
+recommendation_builder = RecommendationBuilder()
 
 
 @router.get("/v1/healthz")
@@ -72,101 +75,120 @@ def push_context(request: ContextRequest):
         stored_at=datetime.utcnow(),
     )
 
-@router.post("/v1/tick", response_model=TickResponse)
-def tick(request: TickRequest):
+async def process_trigger(trigger_id: str):
+    print(f"\nProcessing trigger: {trigger_id}")
+    trigger = store.triggers.get(trigger_id)
+    if trigger is None:
+        return None
 
-    actions = []
+    payload = trigger.payload
 
-    for trigger_id in request.available_triggers:
+    merchant_id = payload.get("merchant_id")
+    merchant = store.merchants.get(merchant_id)
 
-        trigger = store.triggers.get(trigger_id)
+    if merchant is None:
+        return None
 
-        if trigger is None:
-            continue
+    category_slug = merchant.payload.get("category_slug")
+    category = store.categories.get(category_slug)
 
-        payload = trigger.payload
+    if category is None:
+        return None
 
-        merchant_id = payload.get("merchant_id")
-        merchant = store.merchants.get(merchant_id)
+    customer = None
+    customer_id = payload.get("customer_id")
 
-        if merchant is None:
-            continue
+    if customer_id:
+        customer_record = store.customers.get(customer_id)
+        if customer_record:
+            customer = customer_record.payload
 
-        category_slug = merchant.payload.get("category_slug")
-        category = store.categories.get(category_slug)
+    evidence = evidence_builder.build(
+        category=category.payload,
+        merchant=merchant.payload,
+        trigger=payload,
+        customer=customer,
+    )
 
-        if category is None:
-            continue
+    try:
+        print("Calling Mistral...")
 
-        customer = None
-        customer_id = payload.get("customer_id")
-
-        if customer_id:
-            customer_record = store.customers.get(customer_id)
-            if customer_record:
-                customer = customer_record.payload
-
-        evidence = evidence_builder.build(
-            category=category.payload,
-            merchant=merchant.payload,
-            trigger=payload,
-            customer=customer,
+        response = await asyncio.to_thread(
+            composer.compose,
+            evidence,
         )
 
-        try:
-            response = composer.compose(evidence)
-        except httpx.TimeoutException:
-            continue
-        except httpx.HTTPError:
-            continue
-        except Exception:
-            continue
+        print("LLM Finished")
+        print(response)
+    except (httpx.TimeoutException, httpx.HTTPError):
+        return None
+    except Exception as e:
+        print("LLM ERROR:", e)
+        return None
 
-        try:
-            generated = json.loads(response)
-            generated.setdefault("body", "")
-            generated.setdefault("cta", "open_ended")
-            generated.setdefault("rationale", "")
+    try:
+        generated = json.loads(response)
+    except Exception:
+        start = response.find("{")
+        end = response.rfind("}")
 
-        except Exception:
-
-            start = response.find("{")
-            end = response.rfind("}")
-
-            if start != -1 and end != -1:
-                try:
-                    generated = json.loads(response[start:end + 1])
-                except Exception:
-                    generated = {
-                        "body": response.strip(),
-                        "cta": "open_ended",
-                        "rationale": "Fallback",
-                    }
-            else:
+        if start != -1 and end != -1:
+            try:
+                generated = json.loads(response[start:end + 1])
+            except Exception as e:
+                print("JSON parsing failed:", e)
                 generated = {
                     "body": response.strip(),
                     "cta": "open_ended",
                     "rationale": "Fallback",
                 }
-        if not generated["body"].strip():
-            continue
+        else:
+            generated = {
+                "body": response.strip(),
+                "cta": "open_ended",
+                "rationale": "Fallback",
+            }
 
-        action = Action(
-            conversation_id=f"conv_{trigger_id}",
-            merchant_id=merchant_id,
-            customer_id=customer_id,
-            send_as="merchant_on_behalf" if customer_id else "vera",
-            trigger_id=trigger_id,
-            template_name="dynamic_v1",
-            template_params=[],
-            body=generated.get("body", ""),
-            cta=generated.get("cta", "open_ended"),
-            suppression_key=payload.get("suppression_key", trigger_id),
-            rationale=generated.get("rationale", ""),
-        )
+    if not generated.get("body", "").strip():
+        return None
+    
+    print("Generated body:")
+    print(generated.get("body"))
 
-        actions.append(action)
+    return Action(
+        conversation_id=f"conv_{trigger_id}",
+        merchant_id=merchant_id,
+        customer_id=customer_id,
+        send_as="merchant_on_behalf" if customer_id else "vera",
+        trigger_id=trigger_id,
+        template_name="dynamic_v1",
+        template_params=[],
+        body=generated.get("body", ""),
+        cta=generated.get("cta", "open_ended"),
+        suppression_key=payload.get("suppression_key", trigger_id),
+        rationale=generated.get("rationale", ""),
+    )
 
+@router.post("/v1/tick", response_model=TickResponse)
+async def tick(request: TickRequest):
+    print("Received triggers:", len(request.available_triggers))
+    print(request.available_triggers)
+
+    MAX_TRIGGERS = 2
+
+    tasks = [
+        process_trigger(trigger_id)
+        for trigger_id in request.available_triggers[:MAX_TRIGGERS]
+    ]
+
+    results = await asyncio.gather(*tasks)
+
+    actions = [
+        action
+        for action in results
+        if action is not None
+    ]
+    print("Returning actions:", len(actions))
     return TickResponse(actions=actions)
 
 @router.post("/v1/reply", response_model=ReplyResponse)

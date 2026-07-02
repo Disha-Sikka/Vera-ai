@@ -9,11 +9,12 @@ class LLMProvider:
     def __init__(self):
         self.api_key = os.getenv("MISTRAL_API_KEY")
         self.model = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+        self.client = httpx.Client(timeout=20)
 
 
     def generate(self, prompt: str):
 
-        response = httpx.post(
+        response = self.client.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -33,7 +34,7 @@ class LLMProvider:
                 ],
                 "temperature": 0.2,
             },
-            timeout=20,
+            timeout=60,
         )
 
         response.raise_for_status()
