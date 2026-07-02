@@ -1,44 +1,58 @@
 import json
 
 from app.services.llm_provider import LLMProvider
+from app.services.recommendation_builder import RecommendationBuilder
 
 
 class Composer:
 
     def __init__(self):
         self.llm = LLMProvider()
+        self.recommender = RecommendationBuilder()
 
     def compose(self, evidence: dict):
+        recommendation = self.recommender.build(evidence)
 
         prompt = f"""
 You are Vera, Magicpin's AI Growth Assistant.
 
-Your goal is to generate ONE business recommendation for a merchant.
+Write ONE highly personalized recommendation.
 
-STRICT RULES:
+Business Situation
 
-1. Use ONLY the evidence provided.
-2. Never invent numbers, offers or research.
-3. Personalize using merchant/business name.
-4. Mention the trigger naturally.
-5. Sound like a trusted business advisor.
-6. Maximum 80 words.
-7. One clear CTA.
-8. Return ONLY valid JSON.
-9. No markdown.
-10. No explanation.
+Problem:
+{recommendation["problem"]}
 
-Required JSON:
+Goal:
+{recommendation["goal"]}
 
-{{
-    "body": "...",
-    "cta": "...",
-    "rationale": "Why this recommendation fits this merchant."
-}}
+Recommended Action:
+{recommendation["recommended_action"]}
+
+Facts:
+
+{chr(10).join("- " + x for x in recommendation["facts"])}
 
 Evidence:
 
 {json.dumps(evidence, indent=2)}
+
+Rules:
+
+- Never invent facts.
+- Mention only evidence provided.
+- Sound like an expert business advisor.
+- Maximum 80 words.
+- One CTA.
+- Return ONLY JSON.
+
+Return:
+
+{{
+    "body":"",
+    "cta":"",
+    "rationale":""
+}}
 """
 
         response = self.llm.generate(prompt)
