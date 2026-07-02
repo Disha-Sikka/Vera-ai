@@ -32,7 +32,7 @@ def health():
 @router.get("/v1/metadata")
 def metadata():
     return {
-        "team": "Vera Decision Engine",
+        "team_name": "Disha Sikka",
         "model": "mistral-large-latest",
         "version": "1.0.0",
     }
